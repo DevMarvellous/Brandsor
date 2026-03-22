@@ -7,6 +7,12 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'Brandsor - AI Brand Name Generator',
   description: 'Generate production-ready brandable startup names with AI.',
+  // This tells Next.js exactly where to find your "B" logo
+  icons: {
+    icon: '/favicon.png',
+    shortcut: '/favicon.png',
+    apple: '/favicon.png',
+  },
 };
 
 export default function RootLayout({
