@@ -1,43 +1,33 @@
-import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { NextResponse } from "next/server";
+import { adminDb } from "@/lib/firebaseAdmin";
+import { getUidFromBearer } from "@/lib/apiAuth";
+import { errorResponse } from "@/lib/apiErrors";
 
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
+    const id = searchParams.get("id");
 
     if (!id) {
-      return NextResponse.json({ error: "Missing document id" }, { status: 400 });
+      return errorResponse("BAD_REQUEST", "Missing document id", 400);
     }
 
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const uid = await getUidFromBearer(req);
+    if (!uid) {
+      return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
     }
 
-    const token = authHeader.split("Bearer ")[1];
-    const { adminAuth } = await import('@/lib/firebaseAdmin');
-    let uid;
-    try {
-      const decodedToken = await adminAuth.verifyIdToken(token);
-      uid = decodedToken.uid;
-    } catch (e) {
-      return NextResponse.json({ error: "Invalid Token" }, { status: 401 });
-    }
-
-    // Verify ownership
     const docRef = adminDb.collection("saved_names").doc(id);
     const doc = await docRef.get();
-    
+
     if (!doc.exists || doc.data()?.userId !== uid) {
-      return NextResponse.json({ error: "Forbidden or Not Found" }, { status: 403 });
+      return errorResponse("FORBIDDEN", "Forbidden or not found", 403);
     }
 
     await docRef.delete();
     return NextResponse.json({ success: true });
-
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error deleting name:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return errorResponse("INTERNAL_ERROR", "Internal Server Error", 500);
   }
 }

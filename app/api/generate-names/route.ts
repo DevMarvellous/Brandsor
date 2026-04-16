@@ -1,73 +1,119 @@
 import { NextResponse } from "next/server";
 import { generateBrandNames } from "@/lib/gemini";
+import { errorResponse } from "@/lib/apiErrors";
+import { parseJsonBody } from "@/lib/parseJsonBody";
+import {
+  normalizeOptionalString,
+  requiredString,
+} from "@/lib/apiValidation";
+import { checkRateLimit } from "@/lib/rateLimit";
 
-// In-memory simple cache + rate limiting map
-// In production, redis or similar should be used
-const requestCache = new Map<string, { time: number, data: any }>();
-const requestQueue = new Map<string, number>();
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_MAX_ENTRIES = 200;
+const BODY_MAX_BYTES = 32_768;
+const RATE_WINDOW_MS = 60_000;
+const RATE_MAX = 30;
+
+/** Bounded in-memory cache (evicts oldest keys when full). */
+const requestCache = new Map<string, { time: number; data: { items: unknown[] } }>();
+
+function cacheSet(
+  key: string,
+  entry: { time: number; data: { items: unknown[] } }
+) {
+  if (requestCache.size >= CACHE_MAX_ENTRIES && !requestCache.has(key)) {
+    const oldest = requestCache.keys().next().value;
+    if (oldest !== undefined) requestCache.delete(oldest);
+  }
+  requestCache.set(key, entry);
+}
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { idea, industry, tone } = body;
-
-    if (!idea || typeof idea !== 'string' || idea.length > 1000) {
-      return NextResponse.json({ error: "Invalid idea description length" }, { status: 400 });
+    const limited = checkRateLimit(req, "generate-names", RATE_MAX, RATE_WINDOW_MS);
+    if (!limited.allowed) {
+      return errorResponse(
+        "RATE_LIMITED",
+        "Too many requests. Please try again later.",
+        429,
+        { "Retry-After": "60" }
+      );
     }
 
-    // IP or generic rate limiting logic could be added here
-    // Caching identical prompts
-    const cacheKey = `${idea}-${industry || ''}-${tone || ''}`;
+    const parsed = await parseJsonBody<{
+      idea?: unknown;
+      industry?: unknown;
+      tone?: unknown;
+    }>(req, BODY_MAX_BYTES);
+    if (!parsed.ok) return parsed.response;
+
+    const idea = requiredString(parsed.data.idea, 1000);
+    if (!idea) {
+      return errorResponse(
+        "BAD_REQUEST",
+        "Invalid idea: must be a non-empty string up to 1000 characters.",
+        400
+      );
+    }
+
+    const industry = normalizeOptionalString(parsed.data.industry, 200);
+    const tone = normalizeOptionalString(parsed.data.tone, 200);
+
+    const cacheKey = `${idea}-${industry}-${tone}`;
     const cached = requestCache.get(cacheKey);
     const now = Date.now();
-    
-    if (cached && (now - cached.time) < 5 * 60 * 1000) {
-      // Return cached results
+
+    if (cached && now - cached.time < CACHE_TTL_MS) {
       return NextResponse.json(cached.data);
     }
 
-    // Retry logic
-    let resultItems = null;
+    let resultItems: unknown[] | null = null;
     let attempts = 0;
     while (attempts < 2) {
       try {
         const result = await generateBrandNames(idea, industry, tone);
-        
-        let parsedArray = null;
+
+        let parsedArray: unknown[] | null = null;
         if (Array.isArray(result)) {
-           parsedArray = result;
-        } else if (result && typeof result === 'object') {
-           // check if it's wrapped in an object like { names: [...] }
-           const values = Object.values(result);
-           for (const val of values) {
-             if (Array.isArray(val)) {
-               parsedArray = val;
-               break;
-             }
-           }
+          parsedArray = result;
+        } else if (result && typeof result === "object") {
+          const values = Object.values(result);
+          for (const val of values) {
+            if (Array.isArray(val)) {
+              parsedArray = val;
+              break;
+            }
+          }
         }
 
         if (parsedArray && parsedArray.length > 0) {
           resultItems = parsedArray;
           break;
-        } else {
-          throw new Error("Invalid format from AI. Result was not an array.");
         }
-      } catch (e) {
+        throw new Error("Invalid format from AI. Result was not an array.");
+      } catch {
         attempts++;
-        if (attempts >= 2) throw e;
+        if (attempts >= 2) {
+          console.error("API Error generating names after retries");
+          return errorResponse(
+            "UPSTREAM_ERROR",
+            "Failed to generate names. Please try again.",
+            502
+          );
+        }
       }
     }
 
-    const responseData = { items: resultItems };
-
-    // Save to cache
-    requestCache.set(cacheKey, { time: now, data: responseData });
+    const responseData = { items: resultItems as unknown[] };
+    cacheSet(cacheKey, { time: now, data: responseData });
 
     return NextResponse.json(responseData);
-
-  } catch (error: any) {
+  } catch (error) {
     console.error("API Error generating names:", error);
-    return NextResponse.json({ error: "Failed to generate names", details: error.message }, { status: 500 });
+    return errorResponse(
+      "INTERNAL_ERROR",
+      "Internal Server Error",
+      500
+    );
   }
 }

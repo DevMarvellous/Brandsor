@@ -17,10 +17,14 @@ const initFirebaseAdmin = () => {
         }),
       });
     } else {
-      console.warn("Firebase Admin SDK not fully configured. Using default app initialization. Set env variables properly.");
+      console.warn(
+        "Firebase Admin SDK not fully configured. Using default app initialization. Set env variables properly."
+      );
       try {
         initializeApp();
-      } catch (error) {}
+      } catch (error) {
+        console.error("Firebase Admin default initialization failed:", error);
+      }
     }
   }
 };

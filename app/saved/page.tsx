@@ -20,9 +20,16 @@ export default function SavedNamesPage() {
   const [user, setUser] = useState(auth.currentUser);
 
   useEffect(() => {
-    const fetchSaved = async (uid: string) => {
+    const fetchSaved = async (currentUser: NonNullable<typeof auth.currentUser>) => {
       try {
-        const res = await fetch(`/api/get-saved?uid=${uid}`);
+        const token = await currentUser.getIdToken();
+        if (!token) {
+          setSavedNames([]);
+          return;
+        }
+        const res = await fetch("/api/get-saved", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
         if (res.ok) {
           const data = await res.json();
           setSavedNames(data.savedNames || []);
@@ -37,7 +44,7 @@ export default function SavedNamesPage() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        fetchSaved(currentUser.uid);
+        fetchSaved(currentUser);
       } else {
         setLoading(false);
       }

@@ -23,7 +23,13 @@ export default function ContactPage() {
         body: JSON.stringify({ name, email, message }),
       });
 
-      if (!res.ok) throw new Error("Failed to send message");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg =
+          (data?.error && typeof data.error === "object" && data.error.message) ||
+          "Failed to send message";
+        throw new Error(msg);
+      }
       
       setStatus("success");
       setName("");

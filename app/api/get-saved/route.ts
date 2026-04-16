@@ -1,33 +1,35 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
+import { getUidFromBearer } from '@/lib/apiAuth';
+import { errorResponse } from '@/lib/apiErrors';
 
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const uid = searchParams.get('uid');
-
+    const uid = await getUidFromBearer(req);
     if (!uid) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
     }
 
-    // Since this is a simple GET, we are using query param for ease.
-    // In production, we'd still want headers verifying the token.
     const snapshot = await adminDb.collection('saved_names')
       .where('userId', '==', uid)
+      .limit(100)
       .get();
 
-    const savedNames = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })).sort((a: any, b: any) => {
-      const timeA = a.createdAt?.toDate?.() || 0;
-      const timeB = b.createdAt?.toDate?.() || 0;
-      return timeB - timeA;
-    });
+    // Sort client-side to avoid index requirement
+    const savedNames = snapshot.docs
+      .map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+      .sort((a: any, b: any) => {
+        const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
+        const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
+        return dateB.getTime() - dateA.getTime();
+      });
 
     return NextResponse.json({ savedNames });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error fetching saved names:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return errorResponse("INTERNAL_ERROR", "Internal Server Error", 500);
   }
 }
