@@ -27,12 +27,21 @@ export const metadata: Metadata = {
     title: 'Brandsor - AI Brand Name Generator',
     description: 'Generate production-ready brandable startup names with AI. Build your entire brand identity from naming to complete brand development.',
     siteName: 'Brandsor',
+    // WhatsApp prefers square images (1:1 ratio) but also supports 1.91:1 ratio
     images: [
       {
         url: '/og-image.png',
         width: 1200,
         height: 630,
         alt: 'Brandsor - AI Brand Name Generator',
+        type: 'image/png',
+      },
+      {
+        url: '/og-whatsapp.png',
+        width: 400,
+        height: 400,
+        alt: 'Brandsor - AI Brand Name Generator',
+        type: 'image/png',
       },
     ],
   },
@@ -76,6 +85,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        {/* Additional meta tags for WhatsApp and other platforms */}
+        <meta property="og:site_name" content="Brandsor" />
+        <meta property="og:type" content="website" />
+        <meta name="theme-color" content="#fbbf24" />
+        <meta name="msapplication-TileColor" content="#fbbf24" />
+      </head>
       <body className={`${inter.className} bg-white text-black dark:bg-[#0f0f0f] dark:text-white min-h-screen transition-colors duration-300`}>
         {children}
       </body>
