@@ -16,14 +16,14 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL('https://brandsor.vercel.app'),
+  metadataBase: new URL('https://brandsor.xyz'),
   alternates: {
     canonical: '/',
   },
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://brandsor.vercel.app',
+    url: 'https://brandsor.xyz',
     title: 'Brandsor - AI Brand Name Generator',
     description: 'Generate production-ready brandable startup names with AI. Build your entire brand identity from naming to complete brand development.',
     siteName: 'Brandsor',
