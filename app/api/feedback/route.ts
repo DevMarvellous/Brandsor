@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { errorResponse } from "@/lib/apiErrors";
 import { parseJsonBody } from "@/lib/parseJsonBody";
