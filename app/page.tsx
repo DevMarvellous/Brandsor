@@ -4,6 +4,33 @@ import { useState, useEffect } from "react";
 import { Sparkles, Mail, Check, Zap, Shield, Users, ArrowRight, Star, TrendingUp, Loader2 } from "lucide-react";
 import Link from "next/link";
 
+// Structured Data for SEO
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Brandsor",
+  "description": "Generate production-ready brandable startup names with AI. Build your entire brand identity from naming to complete brand development.",
+  "url": "https://brandsor.vercel.app",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "creator": {
+    "@type": "Organization",
+    "name": "Brandsor Team"
+  },
+  "featureList": [
+    "AI-powered brand name generation",
+    "Brand identity development",
+    "Business naming tools",
+    "Brand strategy insights",
+    "Logo and visual identity guidance"
+  ]
+};
+
 export default function WaitlistLandingPage() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -119,7 +146,12 @@ export default function WaitlistLandingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-primary/5 via-white to-primary/5 dark:from-primary/10 dark:via-[#0f0f0f] dark:to-primary/10">
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
+      <main className="min-h-screen bg-gradient-to-br from-primary/5 via-white to-primary/5 dark:from-primary/10 dark:via-[#0f0f0f] dark:to-primary/10">
       {/* Navigation */}
       <nav className="w-full flex items-center justify-between p-6 px-8">
         <div className="flex items-center gap-2">
@@ -351,6 +383,7 @@ export default function WaitlistLandingPage() {
           </div>
         </div>
       </section>
-    </main>
+      </main>
+    </>
   );
 }
