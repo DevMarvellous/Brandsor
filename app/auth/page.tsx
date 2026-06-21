@@ -3,34 +3,37 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithGoogle } from "@/lib/auth";
-import { auth } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase/client";
 import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 export default function AuthPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [user, setUser] = useState(auth.currentUser);
   const [isAutoSigningIn, setIsAutoSigningIn] = useState(false);
 
   useEffect(() => {
-    // Show auto-signin indicator if we don't have a user immediately
-    const timer = setTimeout(() => {
-      if (!auth.currentUser) {
-        setIsAutoSigningIn(true);
-      }
-    }, 500);
+    // Show auto-signin indicator while we resolve the session.
+    const timer = setTimeout(() => setIsAutoSigningIn(true), 500);
 
-    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
-      setUser(currentUser);
+    const resolve = (hasSession: boolean) => {
       setIsAutoSigningIn(false);
       clearTimeout(timer);
-      if (currentUser) {
+      if (hasSession) {
         router.push("/dashboard");
       }
-    });
+    };
+
+    supabase.auth.getSession().then(({ data }) => resolve(!!data.session));
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) =>
+      resolve(!!session)
+    );
+
     return () => {
-      unsubscribe();
+      subscription.unsubscribe();
       clearTimeout(timer);
     };
   }, [router]);
@@ -38,13 +41,10 @@ export default function AuthPage() {
   const handleAuth = async () => {
     setIsLoading(true);
     try {
-      const result = await signInWithGoogle();
-      if (result) {
-        router.push("/dashboard");
-      }
+      // Redirects the page to Google; the session is established on return.
+      await signInWithGoogle();
     } catch (error) {
       console.error("Authentication error:", error);
-    } finally {
       setIsLoading(false);
     }
   };
@@ -52,7 +52,7 @@ export default function AuthPage() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-primary/5 via-white to-primary/5 dark:from-primary/10 dark:via-[#0f0f0f] dark:to-primary/10">
       {/* Navigation */}
-      <nav className="w-full flex items-center justify-between p-6 px-8">
+      <nav className="w-full flex items-center justify-between p-4 sm:p-6 px-4 sm:px-8">
         <Link 
           href="/" 
           className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-primary transition-colors"
@@ -77,11 +77,11 @@ export default function AuthPage() {
             
             <h1 className="text-3xl font-bold mb-4">Welcome to Brandsor</h1>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Continue to start generating amazing brand names with AI
+              Sign in to build and share your brand identity
             </p>
           </div>
 
-          <div className="bg-white dark:bg-[#1a1a1a] p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+          <div className="bg-white dark:bg-[#1a1a1a] p-8 rounded-2xl border border-gray-300 dark:border-gray-800 shadow-sm">
             {/* Auto-signin indicator */}
             {isAutoSigningIn && (
               <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
@@ -98,7 +98,7 @@ export default function AuthPage() {
             <button
               onClick={handleAuth}
               disabled={isLoading || isAutoSigningIn}
-              className="w-full flex items-center justify-center gap-3 bg-white dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 text-black dark:text-white px-6 py-4 rounded-xl font-medium hover:border-primary hover:text-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-3 bg-white dark:bg-[#0f0f0f] border border-gray-300 dark:border-gray-800 text-black dark:text-white px-6 py-4 rounded-xl font-medium hover:border-primary hover:text-primary active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <>
@@ -128,13 +128,12 @@ export default function AuthPage() {
           <div className="mt-8 text-center">
             <div className="flex items-center justify-center gap-2 mb-4">
               <Sparkles className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium text-primary">Try It Out</span>
+              <span className="text-sm font-medium text-primary">What you can do</span>
             </div>
             <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
-              <li>✨ Test AI-powered name generation</li>
-              <li>🎨 Explore different tones and styles</li>
-              <li>💾 Save your favorite combinations</li>
-              <li>🎯 See if it fits your needs</li>
+              <li>✨ Generate brand names with AI</li>
+              <li>🎨 Build a brand workspace — logo, palette, fonts, guidelines</li>
+              <li>🔗 Publish a shareable public brand profile</li>
             </ul>
           </div>
         </div>

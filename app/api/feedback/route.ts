@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebaseAdmin";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { errorResponse } from "@/lib/apiErrors";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { requiredString, isValidEmail } from "@/lib/apiValidation";
@@ -48,15 +48,14 @@ export async function POST(req: Request) {
       return errorResponse("BAD_REQUEST", "Invalid email address.", 400);
     }
 
-    const docRef = adminDb.collection("feedback").doc();
-    await docRef.set({
-      name,
-      email,
-      message,
-      createdAt: new Date(),
-    });
+    const { data, error } = await supabaseAdmin
+      .from("feedback")
+      .insert({ name, email, message })
+      .select("id")
+      .single();
+    if (error) throw error;
 
-    return NextResponse.json({ success: true, id: docRef.id });
+    return NextResponse.json({ success: true, id: data.id });
   } catch (error) {
     console.error("Error saving feedback:", error);
     return errorResponse("INTERNAL_ERROR", "Internal Server Error", 500);

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebaseAdmin";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getUidFromBearer } from "@/lib/apiAuth";
 import { errorResponse } from "@/lib/apiErrors";
 
-const MAX_FREE_GENERATIONS = 3;
+export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
@@ -12,31 +12,15 @@ export async function POST(req: Request) {
       return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
     }
 
-    // Get current generation count
-    const userDoc = await adminDb.collection("users").doc(uid).get();
-    const userData = userDoc.data();
-    const currentCount = userData?.generationCount || 0;
-
-    if (currentCount >= MAX_FREE_GENERATIONS) {
-      return NextResponse.json({ 
-        allowed: false, 
-        remaining: 0,
-        message: "You've used all your free test generations. Join our waitlist for full access!"
-      });
-    }
-
-    // Increment generation count
-    await adminDb.collection("users").doc(uid).set({
-      generationCount: currentCount + 1,
-      lastGenerationAt: new Date()
-    }, { merge: true });
-
-    return NextResponse.json({ 
-      allowed: true, 
-      remaining: MAX_FREE_GENERATIONS - (currentCount + 1),
-      used: currentCount + 1
+    // Record usage for analytics only. Generation is no longer gated behind a
+    // free-tier paywall — abuse is bounded by the per-IP rate limit on
+    // /api/generate-names.
+    const { error } = await supabaseAdmin.rpc("increment_generation_count", {
+      p_uid: uid,
     });
+    if (error) throw error;
 
+    return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Error tracking generation:", error);
     return errorResponse("INTERNAL_ERROR", "Internal Server Error", 500);
@@ -50,16 +34,14 @@ export async function GET(req: Request) {
       return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
     }
 
-    const userDoc = await adminDb.collection("users").doc(uid).get();
-    const userData = userDoc.data();
-    const currentCount = userData?.generationCount || 0;
+    const { data, error } = await supabaseAdmin
+      .from("profiles")
+      .select("generation_count")
+      .eq("id", uid)
+      .maybeSingle();
+    if (error) throw error;
 
-    return NextResponse.json({ 
-      used: currentCount,
-      remaining: Math.max(0, MAX_FREE_GENERATIONS - currentCount),
-      allowed: currentCount < MAX_FREE_GENERATIONS
-    });
-
+    return NextResponse.json({ used: data?.generation_count ?? 0 });
   } catch (error) {
     console.error("Error getting generation count:", error);
     return errorResponse("INTERNAL_ERROR", "Internal Server Error", 500);

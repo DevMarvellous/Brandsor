@@ -1,4 +1,4 @@
-import { adminAuth } from "@/lib/firebaseAdmin";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export async function getUidFromBearer(req: Request): Promise<string | null> {
   const authHeader = req.headers.get("authorization");
@@ -10,8 +10,9 @@ export async function getUidFromBearer(req: Request): Promise<string | null> {
   if (!token) return null;
 
   try {
-    const decoded = await adminAuth.verifyIdToken(token);
-    return decoded.uid;
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !data.user) return null;
+    return data.user.id;
   } catch {
     return null;
   }

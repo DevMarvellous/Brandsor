@@ -106,7 +106,7 @@ export default function ContactPage() {
             <button
               type="submit"
               disabled={status === "loading"}
-              className="flex items-center justify-center gap-2 bg-primary text-black px-6 py-4 rounded-xl font-bold hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100 mt-2"
+              className="flex items-center justify-center gap-2 bg-primary text-black px-6 py-4 rounded-xl font-bold hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 disabled:hover:scale-100 mt-2"
             >
               {status === "loading" ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
               {status === "loading" ? "Sending..." : "Send Message"}

@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import { Send, Loader2 } from "lucide-react";
 
@@ -63,7 +65,7 @@ export default function GeneratorForm({ onGenerate, isLoading }: Props) {
         <button
           type="submit"
           disabled={isLoading || !idea.trim()}
-          className="flex items-center gap-2 bg-primary text-black px-6 py-3 rounded-xl font-bold hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
+          className="flex items-center gap-2 bg-primary text-black px-6 py-3 rounded-xl font-bold hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 disabled:hover:scale-100"
         >
           {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
           {isLoading ? "Generating..." : "Generate Names"}

@@ -1,43 +1,25 @@
-import { GoogleAuthProvider, signInWithPopup, signOut as fbSignOut } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "./firebase";
+import { supabase } from "./supabase/client";
 
 export const signInWithGoogle = async () => {
-  const provider = new GoogleAuthProvider();
-  try {
-    const result = await signInWithPopup(auth, provider);
-    const user = result.user;
-    
-    // Create or update user profile in Firestore
-    try {
-      const userRef = doc(db, "users", user.uid);
-      await setDoc(userRef, {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        createdAt: serverTimestamp(),
-        lastLogin: serverTimestamp(),
-      }, { merge: true });
-    } catch (dbError) {
-      console.error("Error saving user to Firestore (permissions might be missing):", dbError);
-    }
-
-    return user;
-  } catch (error: any) {
-    if (error.code === 'auth/cancelled-popup-request') {
-      console.log('Login cancelled by user');
-      return null;
-    }
+  // Supabase OAuth is a full-page redirect (not a popup). After Google auth the
+  // browser returns to `redirectTo` with the session, which the client detects.
+  const redirectTo = `${window.location.origin}/dashboard`;
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    // Always show Google's account chooser instead of silently reusing the last
+    // signed-in Google session — otherwise switching accounts requires hunting for
+    // "use another account" inside Google's own UI.
+    options: { redirectTo, queryParams: { prompt: "select_account" } },
+  });
+  if (error) {
     console.error("Error signing in with Google", error);
     throw error;
   }
 };
 
 export const signOut = async () => {
-  try {
-    await fbSignOut(auth);
-  } catch (error) {
+  const { error } = await supabase.auth.signOut();
+  if (error) {
     console.error("Error signing out", error);
   }
 };

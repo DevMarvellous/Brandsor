@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateBrandNames } from "@/lib/gemini";
+import { generateBrandNames, GeminiThrottledError } from "@/lib/gemini";
 import { errorResponse } from "@/lib/apiErrors";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import {
@@ -26,6 +26,57 @@ function cacheSet(
     if (oldest !== undefined) requestCache.delete(oldest);
   }
   requestCache.set(key, entry);
+}
+
+// Trim/lowercase/collapse whitespace so near-duplicate inputs ("Coffee shop "
+// vs "coffee shop") hit the same cache entry instead of issuing a fresh call.
+function normalizeForKey(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+class UpstreamGenerationError extends Error {}
+
+/** Shares one upstream call across concurrent identical requests — two users
+ *  submitting the same idea at the same moment burn one Gemini slot, not two. */
+const inFlight = new Map<string, Promise<{ items: unknown[] }>>();
+
+async function generateWithRetry(
+  idea: string,
+  industry: string,
+  tone: string
+): Promise<{ items: unknown[] }> {
+  let attempts = 0;
+  while (attempts < 2) {
+    try {
+      const result = await generateBrandNames(idea, industry, tone);
+
+      let parsedArray: unknown[] | null = null;
+      if (Array.isArray(result)) {
+        parsedArray = result;
+      } else if (result && typeof result === "object") {
+        const values = Object.values(result);
+        for (const val of values) {
+          if (Array.isArray(val)) {
+            parsedArray = val;
+            break;
+          }
+        }
+      }
+
+      if (parsedArray && parsedArray.length > 0) {
+        return { items: parsedArray };
+      }
+      throw new Error("Invalid format from AI. Result was not an array.");
+    } catch (err) {
+      if (err instanceof GeminiThrottledError) throw err;
+      attempts++;
+      if (attempts >= 2) {
+        console.error("API Error generating names after retries");
+        throw new UpstreamGenerationError("Failed to generate names after retries");
+      }
+    }
+  }
+  throw new UpstreamGenerationError("Failed to generate names after retries");
 }
 
 export async function POST(req: Request) {
@@ -59,56 +110,39 @@ export async function POST(req: Request) {
     const industry = normalizeOptionalString(parsed.data.industry, 200);
     const tone = normalizeOptionalString(parsed.data.tone, 200);
 
-    const cacheKey = `${idea}-${industry}-${tone}`;
-    const cached = requestCache.get(cacheKey);
+    const cacheKey = `${normalizeForKey(idea)}-${normalizeForKey(industry)}-${normalizeForKey(tone)}`;
     const now = Date.now();
-
+    const cached = requestCache.get(cacheKey);
     if (cached && now - cached.time < CACHE_TTL_MS) {
       return NextResponse.json(cached.data);
     }
 
-    let resultItems: unknown[] | null = null;
-    let attempts = 0;
-    while (attempts < 2) {
-      try {
-        const result = await generateBrandNames(idea, industry, tone);
-
-        let parsedArray: unknown[] | null = null;
-        if (Array.isArray(result)) {
-          parsedArray = result;
-        } else if (result && typeof result === "object") {
-          const values = Object.values(result);
-          for (const val of values) {
-            if (Array.isArray(val)) {
-              parsedArray = val;
-              break;
-            }
-          }
-        }
-
-        if (parsedArray && parsedArray.length > 0) {
-          resultItems = parsedArray;
-          break;
-        }
-        throw new Error("Invalid format from AI. Result was not an array.");
-      } catch {
-        attempts++;
-        if (attempts >= 2) {
-          console.error("API Error generating names after retries");
-          return errorResponse(
-            "UPSTREAM_ERROR",
-            "Failed to generate names. Please try again.",
-            502
-          );
-        }
-      }
+    let promise = inFlight.get(cacheKey);
+    if (!promise) {
+      promise = generateWithRetry(idea, industry, tone);
+      inFlight.set(cacheKey, promise);
+      promise.finally(() => inFlight.delete(cacheKey));
     }
 
-    const responseData = { items: resultItems as unknown[] };
+    const responseData = await promise;
     cacheSet(cacheKey, { time: now, data: responseData });
-
     return NextResponse.json(responseData);
   } catch (error) {
+    if (error instanceof GeminiThrottledError) {
+      return errorResponse(
+        "RATE_LIMITED",
+        "Brandsor's AI is at capacity right now. Please try again in a moment.",
+        429,
+        { "Retry-After": "20" }
+      );
+    }
+    if (error instanceof UpstreamGenerationError) {
+      return errorResponse(
+        "UPSTREAM_ERROR",
+        "Failed to generate names. Please try again.",
+        502
+      );
+    }
     console.error("API Error generating names:", error);
     return errorResponse(
       "INTERNAL_ERROR",
