@@ -58,7 +58,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Brandsor — AI Brand Builder & Name Generator',
-    description: 'Generate brand names with AI, build a complete brand identity, save versions, and publish a shareable public brand profile.',
+    description: 'Generate brand names with AI, build a complete brand identity, and publish a shareable public brand profile.',
     images: ['/og-image.png'],
     creator: '@brandsor',
   },

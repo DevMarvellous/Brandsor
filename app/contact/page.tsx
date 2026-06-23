@@ -4,6 +4,7 @@ import { useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Send, Loader2, CheckCircle2 } from "lucide-react";
+import { SOCIAL_LINKS } from "@/components/SocialIcons";
 
 export default function ContactPage() {
   const [name, setName] = useState("");
@@ -113,6 +114,43 @@ export default function ContactPage() {
             </button>
           </form>
         )}
+
+        {/* Prominent social links. On a contact page these deserve real estate,
+            not the tiny grey glyphs they get in the footer — larger, labeled,
+            and tactile (brand-tinted tiles that fill on hover). Same links as
+            the footer, from the shared SOCIAL_LINKS source. */}
+        <div className="mt-14">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="h-px flex-1 bg-gray-300 dark:bg-gray-800" />
+            <span className="text-sm font-medium text-gray-400 dark:text-gray-500">
+              or connect with us
+            </span>
+            <div className="h-px flex-1 bg-gray-300 dark:bg-gray-800" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            {SOCIAL_LINKS.map(({ label, handle, href, Icon }) => (
+              <a
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`${label} — ${handle}`}
+                className="group flex items-center gap-4 p-4 rounded-2xl border border-gray-300 dark:border-gray-800 bg-white dark:bg-[#1a1a1a] hover:border-primary hover:-translate-y-0.5 hover:shadow-md transition-all"
+              >
+                <span className="w-12 h-12 shrink-0 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-black transition-colors">
+                  <Icon className="w-6 h-6" />
+                </span>
+                <span className="flex flex-col min-w-0">
+                  <span className="font-semibold leading-tight">{label}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                    {handle}
+                  </span>
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>
       </main>
       <Footer />
     </div>

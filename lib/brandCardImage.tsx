@@ -3,15 +3,41 @@ import { ImageResponse } from "next/og";
 // Shared 1200x630 brand-card renderer — used both by the public OG image
 // (app/b/[slug]/opengraph-image.tsx) and the authenticated "download my card"
 // export (app/api/brands/[id]/card/route.tsx), so a private, not-yet-public
-// brand can still be exported as an image. Built-in system font, no font
-// fetch, nothing stored or invalidated.
+// brand can still be exported as an image.
+//
+// Both call sites run on the EDGE runtime deliberately: the Node build of
+// @vercel/og eagerly loads its own bundled default font on import via a path
+// resolution that is broken on Windows local dev (ERR_INVALID_URL on
+// noto-sans-...ttf), which 500s the route. The edge build doesn't do that — but
+// it ships no system fonts, so we must supply our own. We bundle Inter (loaded
+// once below via `fetch(new URL(.., import.meta.url))`, the pattern Next's asset
+// tracer recognizes) and reuse it across renders.
 export const BRAND_CARD_SIZE = { width: 1200, height: 630 };
 
-export function renderBrandCardImage(input: {
+type CardFont = {
+  name: "Inter";
+  data: ArrayBuffer;
+  weight: 400 | 700;
+  style: "normal";
+};
+
+// Module-level so the fonts are fetched once per worker, not per request.
+const fontsPromise: Promise<CardFont[]> = Promise.all([
+  fetch(new URL("./fonts/Inter-Regular.ttf", import.meta.url)).then((r) => r.arrayBuffer()),
+  fetch(new URL("./fonts/Inter-Bold.ttf", import.meta.url)).then((r) => r.arrayBuffer()),
+])
+  .then(([regular, bold]): CardFont[] => [
+    { name: "Inter", data: regular, weight: 400, style: "normal" },
+    { name: "Inter", data: bold, weight: 700, style: "normal" },
+  ])
+  .catch(() => []);
+
+export async function renderBrandCardImage(input: {
   name: string;
   tagline?: string | null;
   palette: { hex: string }[];
-}) {
+}): Promise<ImageResponse> {
+  const fonts = await fontsPromise;
   const palette = input.palette.slice(0, 6);
   const accent = palette[0]?.hex ?? "#F2A900";
 
@@ -27,7 +53,7 @@ export function renderBrandCardImage(input: {
           background: "#0f0f0f",
           color: "white",
           padding: "80px",
-          fontFamily: "sans-serif",
+          fontFamily: "Inter",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
@@ -74,6 +100,6 @@ export function renderBrandCardImage(input: {
         </div>
       </div>
     ),
-    { ...BRAND_CARD_SIZE }
+    { ...BRAND_CARD_SIZE, fonts }
   );
 }

@@ -146,3 +146,37 @@ export async function PATCH(
     return errorResponse("INTERNAL_ERROR", "Internal Server Error", 500);
   }
 }
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const uid = await getUidFromBearer(req);
+    if (!uid) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
+
+    // Verify ownership first — 404 (not 403) for missing or not-owned.
+    const { data: brand, error: selErr } = await supabaseAdmin
+      .from("brands")
+      .select("id, owner_id")
+      .eq("id", params.id)
+      .maybeSingle();
+    if (selErr) throw selErr;
+    if (!brand || brand.owner_id !== uid) {
+      return errorResponse("BAD_REQUEST", "Not found", 404);
+    }
+
+    // Row delete cascades to assets + brand_snapshots (FKs in 0002_brands.sql).
+    // Orphaned Storage objects are left behind — the documented v1 debt, no GC.
+    const { error: delErr } = await supabaseAdmin
+      .from("brands")
+      .delete()
+      .eq("id", params.id);
+    if (delErr) throw delErr;
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Error deleting brand:", error);
+    return errorResponse("INTERNAL_ERROR", "Internal Server Error", 500);
+  }
+}

@@ -3,6 +3,7 @@ import { getUidFromBearer } from "@/lib/apiAuth";
 import { errorResponse } from "@/lib/apiErrors";
 import { renderBrandCardImage } from "@/lib/brandCardImage";
 
+export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
 // Authenticated brand-card export — unlike the public OG image at
@@ -24,7 +25,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     return errorResponse("BAD_REQUEST", "Not found", 404);
   }
 
-  return renderBrandCardImage({
+  return await renderBrandCardImage({
     name: brand.name,
     tagline: brand.state?.taglines?.[0] ?? null,
     palette: brand.state?.palette ?? [],

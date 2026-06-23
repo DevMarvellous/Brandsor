@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Globe, Lock, ImageIcon } from "lucide-react";
+import { useState } from "react";
+import { Globe, Lock, ImageIcon, MoreVertical, Trash2 } from "lucide-react";
 import type { PaletteColor } from "@/lib/brands";
 
 export interface BrandCardData {
@@ -25,11 +26,21 @@ function timeAgo(iso: string): string {
   return "just now";
 }
 
-export default function BrandCard({ brand }: { brand: BrandCardData }) {
+export default function BrandCard({
+  brand,
+  onRequestDelete,
+}: {
+  brand: BrandCardData;
+  /** When provided, a "⋯" menu with Delete is shown; the parent owns the
+   *  confirmation + API call so the card stays presentational. */
+  onRequestDelete?: (brand: BrandCardData) => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
     <Link
       href={`/brands/${brand.id}`}
-      className="group block bg-white dark:bg-[#1a1a1a] p-5 rounded-2xl border border-gray-100 dark:border-gray-800 hover:border-primary dark:hover:border-primary transition-all shadow-sm hover:shadow-md"
+      className="group relative block bg-white dark:bg-[#1a1a1a] p-5 rounded-2xl border border-gray-100 dark:border-gray-800 hover:border-primary dark:hover:border-primary transition-all shadow-sm hover:shadow-md"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="w-12 h-12 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-[#151515] flex items-center justify-center overflow-hidden shrink-0">
@@ -40,16 +51,32 @@ export default function BrandCard({ brand }: { brand: BrandCardData }) {
             <ImageIcon className="w-5 h-5 text-gray-300 dark:text-gray-600" />
           )}
         </div>
-        <span
-          className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
-            brand.is_public
-              ? "bg-green-50 text-green-600 dark:bg-green-900/20"
-              : "bg-gray-100 text-gray-500 dark:bg-[#2a2a2a]"
-          }`}
-        >
-          {brand.is_public ? <Globe className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
-          {brand.is_public ? "Public" : "Private"}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
+              brand.is_public
+                ? "bg-green-50 text-green-600 dark:bg-green-900/20"
+                : "bg-gray-100 text-gray-500 dark:bg-[#2a2a2a]"
+            }`}
+          >
+            {brand.is_public ? <Globe className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+            {brand.is_public ? "Public" : "Private"}
+          </span>
+          {onRequestDelete && (
+            <button
+              type="button"
+              aria-label="Workspace actions"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setMenuOpen((o) => !o);
+              }}
+              className="p-1 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-[#2a2a2a] transition-colors"
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       <h3 className="mt-4 text-lg font-bold truncate group-hover:text-primary transition-colors">
@@ -70,6 +97,37 @@ export default function BrandCard({ brand }: { brand: BrandCardData }) {
       )}
 
       <p className="mt-3 text-xs text-gray-400">Updated {timeAgo(brand.updated_at)}</p>
+
+      {menuOpen && onRequestDelete && (
+        <>
+          {/* Invisible backdrop closes the menu on an outside click/tap. */}
+          <button
+            type="button"
+            aria-hidden
+            tabIndex={-1}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setMenuOpen(false);
+            }}
+            className="fixed inset-0 z-10 cursor-default"
+          />
+          <div className="absolute right-4 top-14 z-20 w-36 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a1a1a] shadow-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setMenuOpen(false);
+                onRequestDelete(brand);
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" /> Delete
+            </button>
+          </div>
+        </>
+      )}
     </Link>
   );
 }

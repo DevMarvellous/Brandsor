@@ -12,8 +12,10 @@ import {
   ExternalLink,
   ArrowLeft,
   Download,
+  Trash2,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
+import ConfirmModal from "@/components/ConfirmModal";
 import { getAccessToken } from "@/lib/supabase/client";
 import {
   emptyBrandState,
@@ -50,6 +52,9 @@ export default function WorkspacePage({ params }: { params: { id: string } }) {
   const [status, setStatus] = useState("");
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [downloadingCard, setDownloadingCard] = useState(false);
+  // Which guarded action is awaiting confirmation (go-public / change-link / delete).
+  const [confirm, setConfirm] = useState<null | "public" | "slug" | "delete">(null);
+  const [deleting, setDeleting] = useState(false);
 
   // ---- load -------------------------------------------------------------
   useEffect(() => {
@@ -193,14 +198,45 @@ export default function WorkspacePage({ params }: { params: { id: string } }) {
     }
   };
 
-  const togglePublic = async () => {
-    const next = !isPublic;
+  const applyPublic = async (next: boolean) => {
     const result = await persist({ is_public: next });
     if (result?.ok) {
       setIsPublic(next);
       setStatus(next ? "Brand is now public" : "Brand is now private");
     } else {
       setStatus(result?.data?.error?.message || "Could not update visibility");
+    }
+  };
+
+  // Going public exposes the brand → confirm. Making private is harmless → immediate.
+  const requestTogglePublic = () => {
+    if (!isPublic) setConfirm("public");
+    else applyPublic(false);
+  };
+
+  // Changing the slug breaks the old link → confirm before applying.
+  const requestSaveSlug = () => {
+    if (slug.trim() === savedSlug) return;
+    setConfirm("slug");
+  };
+
+  const deleteBrand = async () => {
+    setDeleting(true);
+    const token = await getAccessToken();
+    if (!token) {
+      router.replace("/auth");
+      return;
+    }
+    const res = await fetch(`/api/brands/${brandId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      router.push("/dashboard");
+    } else {
+      setDeleting(false);
+      setConfirm(null);
+      setStatus("Could not delete workspace");
     }
   };
 
@@ -430,7 +466,7 @@ export default function WorkspacePage({ params }: { params: { id: string } }) {
             </div>
             <button
               type="button"
-              onClick={togglePublic}
+              onClick={requestTogglePublic}
               className={`self-start sm:self-auto px-4 py-2 rounded-xl text-sm font-medium border active:scale-95 transition-all ${
                 isPublic
                   ? "border-gray-300 dark:border-gray-700 hover:border-primary"
@@ -446,7 +482,7 @@ export default function WorkspacePage({ params }: { params: { id: string } }) {
               value={slug}
               aria-label="Public profile URL slug"
               onChange={(e) => setSlug(e.target.value)}
-              onBlur={saveSlug}
+              onBlur={requestSaveSlug}
               className="flex-1 px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent text-sm"
             />
             {isPublic && (
@@ -485,6 +521,25 @@ export default function WorkspacePage({ params }: { params: { id: string } }) {
             >
               <Download className="w-4 h-4" />
               Download data (JSON)
+            </button>
+          </div>
+        </Section>
+
+        {/* Danger zone */}
+        <Section title="Danger zone">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-red-200 dark:border-red-900/40 p-4">
+            <div className="text-sm min-w-0">
+              <p className="font-medium text-red-600 dark:text-red-400">Delete this workspace</p>
+              <p className="text-gray-500 dark:text-gray-400">
+                Permanently removes the brand, its snapshots, and assets. This can&apos;t be undone.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setConfirm("delete")}
+              className="self-start shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-500 hover:text-white transition-colors"
+            >
+              <Trash2 className="w-4 h-4" /> Delete workspace
             </button>
           </div>
         </Section>
@@ -533,6 +588,52 @@ export default function WorkspacePage({ params }: { params: { id: string } }) {
           onSave={handleSaveAndLeave}
           onDiscard={handleDiscardAndLeave}
           onCancel={() => setShowLeaveModal(false)}
+        />
+      )}
+
+      {confirm === "public" && (
+        <ConfirmModal
+          title="Make this brand public?"
+          message="Anyone with the link will be able to view this brand's profile."
+          confirmLabel="Make public"
+          onConfirm={() => {
+            setConfirm(null);
+            applyPublic(true);
+          }}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      {confirm === "slug" && (
+        <ConfirmModal
+          title="Change your public link?"
+          message={`Your current link (/b/${savedSlug}) will stop working — it won't redirect to the new one.`}
+          confirmLabel="Change link"
+          onConfirm={() => {
+            setConfirm(null);
+            saveSlug();
+          }}
+          onCancel={() => {
+            setConfirm(null);
+            setSlug(savedSlug);
+          }}
+        />
+      )}
+
+      {confirm === "delete" && (
+        <ConfirmModal
+          title="Delete this workspace?"
+          message="This permanently removes the brand, its snapshots, and uploaded assets."
+          confirmLabel="Delete"
+          danger
+          loading={deleting}
+          secondStep={{
+            title: "Are you sure?",
+            message: "This can't be undone.",
+            confirmLabel: "Yes, delete",
+          }}
+          onConfirm={deleteBrand}
+          onCancel={() => setConfirm(null)}
         />
       )}
     </div>

@@ -388,6 +388,54 @@ needs schema/versioning design and doesn't serve the v1 golden path.
   account" inside Google's UI.
 - `pnpm build` + `pnpm test` both clean after this change.
 
+## Brand-card image now renders on the EDGE runtime (2026-06-22)
+
+The founder hit a 500 (`failed to pipe response` → `ERR_INVALID_URL` on
+`noto-sans-...ttf`) when clicking **Download card (PNG)** on Windows local dev. Root cause: the
+**Node build** of `@vercel/og` eagerly loads its own bundled default font on import via a path
+resolution that's broken on Windows (`.\file:\C:\...`). It's purely a Windows-local-dev defect —
+Vercel/Linux is fine — but it blocked the founder from testing the PNG export (and the OG image,
+same renderer) at all.
+- **Fix:** both [app/b/[slug]/opengraph-image.tsx](app/b/[slug]/opengraph-image.tsx) and
+  [app/api/brands/[id]/card/route.tsx](app/api/brands/[id]/card/route.tsx) now declare
+  `export const runtime = "edge"`. The edge build of `@vercel/og` doesn't hit that font-path bug.
+  Edge ships no system fonts, so [lib/brandCardImage.tsx](lib/brandCardImage.tsx) now **bundles
+  Inter** ([lib/fonts/](lib/fonts/) Inter-Regular.ttf + Inter-Bold.ttf, ~66KB each) and loads them
+  once via `fetch(new URL("./fonts/..", import.meta.url))` (the pattern Next's asset tracer
+  bundles), passing them to `ImageResponse({ fonts })`. `renderBrandCardImage` is now **async** —
+  both call sites `await` it. Verified locally on Windows: `/b/<slug>/opengraph-image` now returns
+  a 200 image/png; `pnpm build` compiles the edge routes clean. Supabase service-role calls
+  (`getPublicBrand`, `getUidFromBearer`) work on edge.
+- NOTE: passing `fonts` to the *Node* build does NOT help — the default-font load is unconditional
+  at library init, before our render. The runtime switch is the actual fix, not the bundled font.
+
+## Workspace settings: delete + guarded visibility/link changes (2026-06-22)
+
+Founder asked for a way to delete a workspace (from the dashboard and inside the workspace) and to
+guard the risky visibility/link actions with confirmations. Decisions: confirm **only** the risky
+actions (delete, going public, changing the link); making private or renaming the brand stay
+instant. Delete uses a **two-step "Are you sure?"** modal. Delete is reachable from both places.
+- **New `DELETE` handler** on [app/api/brands/[id]/route.ts](app/api/brands/[id]/route.ts) — same
+  Bearer + ownership + 404-not-403 shape as GET/PATCH; row delete cascades to assets/snapshots
+  (orphaned Storage objects remain the existing documented debt, no GC). This is the first
+  brand-delete capability — none existed before.
+- **Reusable [components/ConfirmModal.tsx](components/ConfirmModal.tsx)** — generic confirm dialog
+  styled like [UnsavedChangesModal](components/workspace/UnsavedChangesModal.tsx). Single-step by
+  default (go-public, change-link); pass `secondStep` for the two-step delete guard (internal
+  `useState`, same idea as UnsavedChangesModal's `confirmingDiscard`). `danger` prop = red confirm.
+- **Workspace** ([app/brands/[id]/page.tsx](app/brands/[id]/page.tsx)) — `togglePublic` split into
+  `requestTogglePublic` (confirm only when going public) + `applyPublic`; slug `onBlur` →
+  `requestSaveSlug` (confirm, warns the old link stops working; cancel reverts to `savedSlug`); new
+  **"Danger zone"** Section with a red Delete button → two-step ConfirmModal → DELETE →
+  `router.push("/dashboard")`. A `confirm` state (`null|"public"|"slug"|"delete"`) drives which
+  dialog is open.
+- **Dashboard** ([components/BrandCard.tsx](components/BrandCard.tsx) +
+  [app/dashboard/page.tsx](app/dashboard/page.tsx)) — BrandCard gains an optional
+  `onRequestDelete` prop rendering a "⋯" menu (with an outside-click backdrop) → "Delete"; the
+  card stays presentational, the dashboard owns the shared two-step ConfirmModal + the DELETE call
+  and re-runs `fetchBrands()` on success.
+- `pnpm build` + `pnpm test` (32) both clean after this change.
+
 ## Conventions
 
 **API routes** (`app/api/*/route.ts`) follow one shape:

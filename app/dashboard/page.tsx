@@ -11,6 +11,7 @@ import BrandCard, { type BrandCardData } from "@/components/BrandCard";
 import CreateWorkspaceChooser from "@/components/workspace/CreateWorkspaceChooser";
 import QuickNameSave from "@/components/workspace/QuickNameSave";
 import FullScreenLoader from "@/components/FullScreenLoader";
+import ConfirmModal from "@/components/ConfirmModal";
 import { getAccessToken } from "@/lib/supabase/client";
 import {
   ANON_GENERATION_LIMIT,
@@ -38,6 +39,8 @@ export default function DashboardPage() {
   const [anonLimitReached, setAnonLimitReached] = useState(false);
   const [creatingBrand, setCreatingBrand] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<BrandCardData | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Load (or reload) the signed-in user's brands list.
   const fetchBrands = async () => {
@@ -199,6 +202,29 @@ export default function DashboardPage() {
     }
   };
 
+  const confirmDeleteBrand = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const token = await getAccessToken();
+      if (!token) return;
+      const res = await fetch(`/api/brands/${deleteTarget.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setDeleteTarget(null);
+        await fetchBrands();
+      } else {
+        setError("Could not delete that workspace.");
+      }
+    } catch {
+      setError("Could not delete that workspace.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
 
   // While checking sign-in status, show a skeleton instead of a blank flash.
   if (isSignedIn === null) {
@@ -232,7 +258,7 @@ export default function DashboardPage() {
               <p className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-4">
                 Continue where you left off
               </p>
-              <BrandCard brand={brands[0]!} />
+              <BrandCard brand={brands[0]!} onRequestDelete={setDeleteTarget} />
             </section>
           )}
 
@@ -260,7 +286,7 @@ export default function DashboardPage() {
                     className="animate-fade-in-up"
                     style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
                   >
-                    <BrandCard brand={b} />
+                    <BrandCard brand={b} onRequestDelete={setDeleteTarget} />
                   </div>
                 ))}
               </div>
@@ -363,6 +389,22 @@ export default function DashboardPage() {
         </main>
         <Footer />
         {creatingBrand && <FullScreenLoader message="Creating your workspace…" />}
+        {deleteTarget && (
+          <ConfirmModal
+            title={`Delete "${deleteTarget.name}"?`}
+            message="This permanently removes the brand, its snapshots, and uploaded assets."
+            confirmLabel="Delete"
+            danger
+            loading={deleting}
+            secondStep={{
+              title: "Are you sure?",
+              message: "This can't be undone.",
+              confirmLabel: "Yes, delete",
+            }}
+            onConfirm={confirmDeleteBrand}
+            onCancel={() => setDeleteTarget(null)}
+          />
+        )}
       </div>
     );
   }

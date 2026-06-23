@@ -2,7 +2,8 @@ import { getPublicBrand } from "@/lib/publicBrand";
 import { renderBrandCardImage, BRAND_CARD_SIZE } from "@/lib/brandCardImage";
 
 // Rendered on-demand per request (Next.js convention) — nothing to pre-generate or
-// invalidate when a brand changes.
+// invalidate when a brand changes. Edge runtime: see lib/brandCardImage.tsx for why.
+export const runtime = "edge";
 export const alt = "Brand profile on Brandsor";
 export const size = BRAND_CARD_SIZE;
 export const contentType = "image/png";
