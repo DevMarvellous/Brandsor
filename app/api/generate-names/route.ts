@@ -121,7 +121,13 @@ export async function POST(req: Request) {
     if (!promise) {
       promise = generateWithRetry(idea, industry, tone);
       inFlight.set(cacheKey, promise);
-      promise.finally(() => inFlight.delete(cacheKey));
+      // Drop from the in-flight map once settled. The trailing .catch swallows
+      // THIS bookkeeping chain's copy of any rejection so it can't surface as an
+      // unhandled rejection — which, under Node's default handling, can crash the
+      // warm serverless instance and make a later, unrelated request 500. Every
+      // caller awaiting `promise` below still receives the real rejection and
+      // maps it to a clean 429/502.
+      promise.finally(() => inFlight.delete(cacheKey)).catch(() => {});
     }
 
     const responseData = await promise;

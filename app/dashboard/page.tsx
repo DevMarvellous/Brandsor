@@ -342,7 +342,7 @@ export default function DashboardPage() {
 
           {/* Error Message */}
           {error && (
-            <div className="fixed top-20 inset-x-4 sm:inset-x-auto sm:right-6 sm:max-w-sm z-50 flex items-start gap-3 p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 dark:bg-[#1a1a1a] dark:text-red-400 dark:border-red-900/50 shadow-lg animate-fade-in-up">
+            <div className="fixed top-20 inset-x-4 sm:inset-x-auto sm:right-6 sm:max-w-sm z-[110] flex items-start gap-3 p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 dark:bg-[#1a1a1a] dark:text-red-400 dark:border-red-900/50 shadow-lg animate-fade-in-up">
               <span className="flex-1 text-sm">{error}</span>
               <button
                 onClick={() => setError("")}
@@ -447,7 +447,7 @@ export default function DashboardPage() {
 
         {/* Error Message */}
         {error && (
-          <div className="fixed top-20 inset-x-4 sm:inset-x-auto sm:right-6 sm:max-w-sm z-50 flex items-start gap-3 p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 dark:bg-[#1a1a1a] dark:text-red-400 dark:border-red-900/50 shadow-lg animate-fade-in-up">
+          <div className="fixed top-20 inset-x-4 sm:inset-x-auto sm:right-6 sm:max-w-sm z-[110] flex items-start gap-3 p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 dark:bg-[#1a1a1a] dark:text-red-400 dark:border-red-900/50 shadow-lg animate-fade-in-up">
             <span className="flex-1 text-sm">{error}</span>
             <button
               onClick={() => setError("")}
